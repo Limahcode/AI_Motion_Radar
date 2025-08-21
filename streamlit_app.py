@@ -5,13 +5,13 @@ from ultralytics import YOLO
 import tempfile
 import time
 
-# --- 1️⃣ Load YOLOv8 model ---
-model = YOLO("best.pt")  # trained model
+# --- Load YOLOv8 model ---
+model = YOLO("best.pt")
 
 st.title("🚦 Object Tracking & Speed Estimation App")
 st.write("Upload a short video to detect, track, and estimate object speeds.")
 
-# --- 2️⃣ Upload video ---
+# --- Upload video ---
 uploaded_file = st.file_uploader("Upload a video", type=["mp4", "avi", "mov", "mkv"])
 
 if uploaded_file:
@@ -24,13 +24,21 @@ if uploaded_file:
     fps = cap.get(cv2.CAP_PROP_FPS)
     pixels_per_meter = 50  # adjust for your scene
 
-    tracker_data = {}  # {track_id: (x_center_prev, y_center_prev)}
+    tracker_data = {}
 
-    stframe = st.empty()  # placeholder for showing frames
+    stframe = st.empty()
 
-    # --- 3️⃣ Process each frame with YOLO tracker ---
-    for result in model.track(source=input_video, persist=True, tracker="bytetrack.yaml", stream=True):
-        frame = result.orig_img  # current frame
+    # --- Read frames one by one ---
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        results = model.track(frame, persist=True, tracker="bytetrack.yaml", verbose=False)
+
+        # results is a list, take first element
+        result = results[0]
+
         if result.boxes is not None:
             for box in result.boxes:
                 x1, y1, x2, y2 = box.xyxy[0]
@@ -59,10 +67,10 @@ if uploaded_file:
                 cv2.putText(frame, f"{model.names[cls]} {conf:.2f}", (int(x1), int(y2)+15),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
 
-        # Show frame live
+        # Show frame
         stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB")
 
-        # Throttle for UI (about 30 FPS)
         time.sleep(1 / fps if fps > 0 else 0.03)
 
+    cap.release()
     st.success("✅ Video processing complete!")
