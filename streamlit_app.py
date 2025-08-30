@@ -37,10 +37,11 @@ if not cap.isOpened():
     st.stop()
 
 fps = cap.get(cv2.CAP_PROP_FPS) or 30
-pixels_per_meter = 50
+pixels_per_meter = 50  # Adjust based on your camera/video
 tracker_data = {}
 speed_data = {}
 
+# --- Layout ---
 col1, col2 = st.columns([2, 1])
 stframe = col1.empty()
 statstable = col2.empty()
@@ -58,40 +59,43 @@ for result in model.track(source=input_video, tracker="bytetrack.yaml", persist=
             cls = int(box.cls[0]) if box.cls is not None else -1
             track_id = int(box.id) if box.id is not None else None
 
-            # Center
+            # Compute object center
             x_center = (x1 + x2) / 2
             y_center = (y1 + y2) / 2
 
-            # Speed calc
-            if track_id is not None and track_id in tracker_data:
-                x_prev, y_prev = tracker_data[track_id]
-                dist_pixels = math.hypot(x_center - x_prev, y_center - y_prev)
-                speed_m_per_s = (dist_pixels / pixels_per_meter) * fps
+            # --- Speed calculation ---
+            if track_id is not None:
+                if track_id in tracker_data:
+                    x_prev, y_prev = tracker_data[track_id]
+                    dist_pixels = math.hypot(x_center - x_prev, y_center - y_prev)
+                    speed_m_per_s = (dist_pixels / pixels_per_meter) * fps
+                else:
+                    speed_m_per_s = 0.0  # first frame
+
+                # Update tracker and speed data
+                tracker_data[track_id] = (x_center, y_center)
                 speed_data[track_id] = {
                     "Class": model.names[cls] if cls >= 0 else "Unknown",
                     "Speed (m/s)": round(speed_m_per_s, 2),
                     "Confidence": round(conf, 2),
                 }
-                cv2.putText(frame, f"ID:{track_id} {speed_m_per_s:.2f} m/s",
-                            (int(x1), int(y1) - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
-            if track_id is not None:
-                tracker_data[track_id] = (x_center, y_center)
+                # Draw label with speed
+                label_text = f"{model.names[cls]} {conf:.2f} ID:{track_id} {speed_m_per_s:.2f} m/s"
+                cv2.putText(frame, label_text, (int(x1), int(y1)-10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
             # Draw bounding box
             cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-            cv2.putText(frame, f"{model.names[cls]} {conf:.2f}",
-                        (int(x1), int(y2) + 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    # Update UI
+    # --- Update Streamlit UI ---
     stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB")
 
     if speed_data:
         df = pd.DataFrame([{"Track ID": tid, **info} for tid, info in speed_data.items()])
         statstable.dataframe(df, use_container_width=True)
 
+    # Slow down for UI
     time.sleep(1 / fps)
 
 st.success("✅ Video processing complete!")
