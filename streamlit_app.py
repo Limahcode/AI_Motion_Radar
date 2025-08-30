@@ -1,92 +1,20 @@
-from ultralytics import YOLO
+# streamlit_app.py
+import streamlit as st
 import cv2
 import math
-
-# --- 1️⃣ Load YOLOv8 model ---
-model = YOLO("best.pt")  # your trained model
-
-# --- 2️⃣ Video input/output ---
-input_video = "short_video.mp4"
-output_video = "tracked_output.mp4"
-cap = cv2.VideoCapture(input_video)
-fps = cap.get(cv2.CAP_PROP_FPS)
-width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-# --- 3️⃣ Video writer ---
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-out = cv2.VideoWriter(output_video, fourcc, fps, (width, height))
-
-# --- 4️⃣ Tracker data ---
-tracker_data = {}  # {track_id: (x_center_prev, y_center_prev)}
-pixels_per_meter = 50  # adjust according to your scene
-
-# --- 5️⃣ Process each frame ---
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-
-    # Run YOLO with ByteTrack tracker
-    results = model.predict(source=frame, tracker="bytetrack.yaml", stream=True)
-
-    for result in results:
-        if result.boxes is not None:
-            for box in result.boxes:
-                x1, y1, x2, y2 = box.xyxy[0]  # coordinates
-                conf = float(box.conf[0])
-                cls = int(box.cls[0])
-                track_id = int(box.id[0]) if box.id is not None else None
-
-                # Object center
-                x_center = (x1 + x2) / 2
-                y_center = (y1 + y2) / 2
-
-                # Compute speed (use 0.0 if no previous position)
-                speed_m_per_s = 0.0
-                if track_id is not None:
-                    if track_id in tracker_data:
-                        x_prev, y_prev = tracker_data[track_id]
-                        dist_pixels = math.hypot(x_center - x_prev, y_center - y_prev)
-                        speed_m_per_s = (dist_pixels / pixels_per_meter) * fps
-                    # Update tracker data for next frame
-                    tracker_data[track_id] = (x_center, y_center)
-
-                # Prepare label
-                label_text = f"{model.names[cls]} {conf:.2f}"
-                if track_id is not None:
-                    label_text += f" ID:{track_id} Speed:{speed_m_per_s:.2f} m/s"
-
-                # Draw bounding box and label
-                cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0,255,0), 2)
-                cv2.putText(frame, label_text, (int(x1), int(y1)-10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
-
-    # Write frame to output
-    out.write(frame)
-
-    # Optional: show live
-    cv2.imshow("AI Motion Radar", frame)
-    if cv2.waitKey(import streamlit as st
-import cv2
-import math
-from ultralytics import YOLO
 import tempfile
-import time
 import os
+import time
 import pandas as pd
-
-# --- 1️⃣ Load YOLOv8 model ---
-model = YOLO("best.pt")  # your trained model
-
-print(">>> Running from file:", __file__)
-raise RuntimeError("DEBUG: this is the file I just edited")
-
+from ultralytics import YOLO
 
 st.title("🚦 AI Motion Radar App")
 st.write("Upload a short video or use the demo video to detect, track, and estimate object speeds.")
 
-# --- 2️⃣ File uploader + fallback ---
+# --- Load YOLO model ---
+model = YOLO("best.pt")
+
+# --- Upload / fallback video ---
 uploaded_file = st.file_uploader("Upload a video", type=["mp4", "avi", "mov", "mkv"])
 DEMO_VIDEO = "short_video.mp4"
 
@@ -96,35 +24,29 @@ if uploaded_file is not None:
     input_video = tfile.name
 else:
     if os.path.exists(DEMO_VIDEO):
-        st.info("Using bundled demo video...")
+        st.info("Using demo video...")
         input_video = DEMO_VIDEO
     else:
-        st.warning("⚠️ Please upload a video to continue.")
+        st.warning("⚠️ Please upload a video")
         st.stop()
 
-# --- 3️⃣ Open video to check validity ---
+# --- Video capture check ---
 cap = cv2.VideoCapture(input_video)
 if not cap.isOpened():
-    st.error(f"❌ Could not open video: {input_video}")
+    st.error("❌ Could not open video.")
     st.stop()
 
 fps = cap.get(cv2.CAP_PROP_FPS) or 30
-pixels_per_meter = 50  # adjust for your scene
-tracker_data = {}      # {track_id: (x_center_prev, y_center_prev)}
-speed_data = {}        # {track_id: current_speed}
+pixels_per_meter = 50
+tracker_data = {}
+speed_data = {}
 
-# --- Layout: video on left, stats on right ---
 col1, col2 = st.columns([2, 1])
 stframe = col1.empty()
 statstable = col2.empty()
 
-# --- 4️⃣ Process frames with YOLO tracking ---
-for result in model.track(
-    source=input_video, 
-    persist=True, 
-    tracker="bytetrack.yaml", 
-    stream=True
-):
+# --- YOLO tracking loop ---
+for result in model.track(source=input_video, tracker="bytetrack.yaml", persist=True, stream=True):
     frame = result.orig_img
     if frame is None:
         continue
@@ -136,11 +58,11 @@ for result in model.track(
             cls = int(box.cls[0]) if box.cls is not None else -1
             track_id = int(box.id) if box.id is not None else None
 
-            # Object center
+            # Center
             x_center = (x1 + x2) / 2
             y_center = (y1 + y2) / 2
 
-            # Speed calculation
+            # Speed calc
             if track_id is not None and track_id in tracker_data:
                 x_prev, y_prev = tracker_data[track_id]
                 dist_pixels = math.hypot(x_center - x_prev, y_center - y_prev)
@@ -151,35 +73,25 @@ for result in model.track(
                     "Confidence": round(conf, 2),
                 }
                 cv2.putText(frame, f"ID:{track_id} {speed_m_per_s:.2f} m/s",
-                            (int(x1), int(y1)-10), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5, (255,0,0), 2)
+                            (int(x1), int(y1) - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
             if track_id is not None:
                 tracker_data[track_id] = (x_center, y_center)
 
             # Draw bounding box
-            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0,255,0), 2)
+            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
             cv2.putText(frame, f"{model.names[cls]} {conf:.2f}",
-                        (int(x1), int(y2)+15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+                        (int(x1), int(y2) + 15),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    # Update Streamlit UI
+    # Update UI
     stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB")
 
     if speed_data:
-        df = pd.DataFrame([
-            {"Track ID": tid, **info} for tid, info in speed_data.items()
-        ])
+        df = pd.DataFrame([{"Track ID": tid, **info} for tid, info in speed_data.items()])
         statstable.dataframe(df, use_container_width=True)
 
-    # Slow down for UI
     time.sleep(1 / fps)
 
 st.success("✅ Video processing complete!")
-1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-out.release()
-cv2.destroyAllWindows()
-print(f"✅ Annotated video saved to {output_video}")
