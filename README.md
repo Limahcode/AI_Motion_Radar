@@ -1,8 +1,8 @@
-AI Motion Radar (YOLOv8 Object Tracking & Speed Estimation)
+**AI Motion Radar (YOLOv8 Object Tracking & Speed Estimation)
+**
+A computer vision project that detects, tracks, and estimates the speed of moving road users from traffic footage. I annotated my own dataset (484 images) in CVAT, exported in YOLO format, trained a custom YOLOv8 model on Google Colab, tested locally in VSCode, and deployed with Streamlit Community Cloud.
 
-A computer vision project that detects, tracks, and estimates the speed of moving road users from traffic footage.
-I annotated my own dataset (484 images) in CVAT, exported in YOLO format, trained a custom YOLOv8 model on Google Colab, tested locally in VSCode, and deployed with Streamlit Community Cloud.
-
+**Model & Classes**
 The model is trained to recognize 5 traffic classes:
 
 🚗 Car
@@ -15,8 +15,8 @@ The model is trained to recognize 5 traffic classes:
 
 🏍️ Bike
 
-✨ Features
-
+**Features
+**
 Upload a video (MP4/AVI/MOV/MKV)
 
 YOLOv8 detection + tracking (ByteTrack) → stable IDs
@@ -31,9 +31,8 @@ One-click deployment on Streamlit Cloud
 
 ⚠️ Note: Speed is an estimate. Accuracy depends on camera angle, FPS, and your calibration (pixels_per_meter).
 
-
-🧠 How it Works
-
+**How It Works
+**
 Detect objects in each frame with my trained YOLOv8 model (best.pt).
 
 Track detections across frames with ByteTrack so each object keeps a stable ID.
@@ -49,8 +48,7 @@ Draw bounding boxes with class, ID, and estimated speed.
 Speed formula used:
 
 
-📂 Dataset
-
+**Dataset**
 Annotated 484 traffic frames in CVAT
 
 Classes: car, bus, tricycle, person, bike
@@ -94,9 +92,8 @@ Select repo/branch and entrypoint → streamlit_app.py.
 
 Streamlit Cloud auto-installs packages and runs the app.
 
-Your app will be live at:
-https://<username>-ai-motion-radar.streamlit.app
-
+App will be live at:
+(https://aimotionradar-nbcsadjccr3arexbvphoc3.streamlit.app/)
 
 🧩 Key Files
 requirements.txt
